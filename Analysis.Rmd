@@ -1,0 +1,442 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+
+```{r}
+library(igraph)
+library(ggplot2)
+library(dplyr)
+library(visNetwork)
+```
+
+```{r}
+got_edges  <- read.csv  ( "stormofswords.csv" , header  =  T )
+got_nodes  <- read.csv  ( "nodes_stormsofswords (3).csv" , header  =  T )
+head(got_edges)
+```
+
+```{r}
+net_got  <- graph.data.frame ( d  =  got_edges , vertices  =  got_nodes , directed  =  F )
+
+union_graph <- graph_from_data_frame(got_edges, directed = FALSE, vertices = got_nodes)
+
+layout <- layout_with_fr(union_graph)
+plot(union_graph,
+     layout = layout,
+     vertex.label = gsub(" ", "\n", V(union_graph)$name),
+     vertex.shape = V(union_graph)$shape,
+     vertex.color = V(union_graph)$color, 
+     vertex.size =  15, 
+     vertex.frame.color = "gray", 
+     vertex.label.color = "black", 
+     #vertex.label.cex = 0.4,
+     vertex.label.cex = 0.4,
+     edge.arrow.size = 0.5,
+     edge.color = E(union_graph)$color,
+     edge.lty = E(union_graph)$lty)
+legend("topleft", legend = "", cex = 1, bty = "n", ncol = 1,
+       title = "Game of Thrones [Storm of Swords]")
+
+```
+
+```{r}
+#Basic topographical measures
+#network size
+size_st <- length(V(net_got))
+#size_st
+#average distance
+average_distance_st <- mean_distance(net_got)
+#average_distance_st
+# diameter
+diameter_st <- diameter(net_got) 
+#diameter_st
+
+#topography measures
+basic_topography_st <- matrix(c(size_st, average_distance_st, diameter_st ), nrow=1, ncol=3)
+colnames(basic_topography_st) <- c('Size', 'Average Distance', 'Diameter')
+basic_topography_st
+
+cat("\n")
+cat("\n")
+
+#diameter path
+diameter_path <- get_diameter(net_got)# get diameter
+diameter_path
+```
+
+```{r}
+#cutoff
+
+cutoff <- weighted.mean(got_edges $ Weight)#12.28409
+cutoff
+del_edges <- delete_edges(net_got, E(net_got) [Weight < cutoff])
+net_got_cutoff <- del_edges
+net_got_cutoff
+```
+```{r}
+
+#Cliques
+# List of cliques, their sizes and cliques with largest number of nodes
+cliques_net_got <- cliques(net_got, min=3)      # list of cliques with minimum 3 actors
+clique_sizes_net_got <- sapply(cliques_net_got, length)
+largest_cliques_net_got <- largest_cliques(net_got)
+largest_cliques_net_got
+
+cat("Summary of clique measures (smallest clique size 3) for first network: \n",
+    "Number of cliques: ", length(cliques_net_got), "\n",
+    "Cliques            ", paste(cliques_net_got[[1]]), "\n",
+    "                   ", paste(cliques_net_got[[2]]), "\n",
+    "                   ", paste(cliques_net_got[[3]]), "\n",
+    "                   ", paste(cliques_net_got[[4]]), "\n",
+    "                   ", paste(cliques_net_got[[5]]), "\n",
+    "                   ", paste(cliques_net_got[[6]]), "\n",
+    "Largest clique:    ", paste(largest_cliques_net_got), "\n")
+
+```
+
+```{r}
+#Brokerage
+
+g.ap <- articulation.points(net_got)
+cat("Articulation points: ", V(net_got)$name[g.ap], "\n")
+#net_got.components <- components(net_got )$membership
+#net_articulation <- delete.vertices(net_got, g.ap)
+#plot(net_articulation)
+#net_got.components <- components(net_articulation )$membership
+
+bi_conn <- biconnected.components(net_got)
+cat("Bi connected points: ",bi_conn$no, "\n")
+
+```
+
+
+```{r}
+#FINDING OUT THE MOST IMPORTANT CHARACTERS
+#Degree Centalization
+net_got.dc <- degree(net_got, mode = "all")
+#Top 10 Influential Character as per Degree Centrality
+net_got.dc <- head(sort(net_got.dc, decreasing=TRUE), n = 10)
+net_got.dc
+
+#net_got.deg_c00 <- centralization.degree(net_got)$res
+
+
+
+#Bar plot for the degree centralization of top 10 actors:
+
+
+#typeof(net_got.dc)
+#do.call(rbind.data.frame, clo_got)
+net_got.deg_c <- as.matrix(net_got.dc)
+df_net_got.deg_c1 <- as.data.frame(as.table(net_got.deg_c))
+
+colnames(df_net_got.deg_c1) <- c("name", "not_used","degree_centralization")
+
+#df_net_got.dc1
+
+p <- ggplot(df_net_got.deg_c1, aes(x=name, y=degree_centralization)) +
+    geom_bar(stat="identity", color="blue", aes(fill=factor(name))) +
+      coord_flip() +
+    ggtitle("Top 10 Influential Characters as per Degree Centrality") +
+    xlab("Character Names") + ylab("Degree Centrality") 
+print(p)
+
+
+
+# plot(net_got, vertex.color= "salmon", vertex.size=net_got.dc, vertex.label.cex=0.7, edge.arrow.size=.4, layout=layout_randomly(net_got), main="g1 degree centrality")
+```
+
+
+
+```{r}
+#EigenValue Centrality
+net_got.ec <- eigen_centrality(net_got)$vector
+
+
+net_got.ec <- head(sort(net_got.ec, decreasing=TRUE), n = 10)# top 10 characters based on eigevalue centrality
+
+net_got.ec
+
+
+#Bar plot for the Eigenvalue Centrality of top 10 actors:
+
+net_got.ec1 <- as.matrix(net_got.ec)
+df_net_got.ec1 <- as.data.frame(as.table(net_got.ec1))
+
+colnames(df_net_got.ec1) <- c("name", "not_used","eigenvalue")
+
+#df_net_got.ec1
+
+p <- ggplot(df_net_got.ec1, aes(x=name, y=eigenvalue)) +
+    geom_bar(stat="identity", color="blue", aes(fill=factor(name))) +
+      coord_flip() +
+    ggtitle("Most Important Character as per Eigenvalue Centrality") +
+    xlab("Character Names") + ylab("Eigenvalue") 
+print(p)
+```
+
+```{r}
+
+#closeness  centrality 
+ clo_got <- closeness ( net_got , mode  =  "all" , weights  =  NA  ) # top 10 characters based on closeness centrality
+ #got_nodes $ closeness  <-  clo_got  
+
+ clo_got_10 <- head(sort(clo_got, decreasing=TRUE), n = 10)
+ clo_got_10
+ #net_got.ec <- eigen_centrality(net_got)$vector
+#Bar plot for the Closeness Centrality of top 10 actors:
+
+net_got.cc1 <- as.matrix(clo_got_10)
+df_net_got.cc2 <- as.data.frame(as.table(net_got.cc1))
+
+colnames(df_net_got.cc2) <- c("name", "not_used","closeness1")
+
+#df_net_got.cc2
+
+p <- ggplot(df_net_got.cc2, aes(x=name, y=closeness1)) +
+    geom_bar(stat="identity", color="blue", aes(fill=factor(name))) +
+      coord_flip() +
+    ggtitle("Most Important Character as per Closeness Centrality") +
+    xlab("Character Names") + ylab("Closeness") 
+print(p)
+```
+
+```{r}
+#Betweenness Centrality
+
+bet_got  <- betweenness ( net_got , directed = T , weights = NA )
+
+got_nodes $ betweenness  <-  bet_got
+
+bet_got_10 <- head(sort(bet_got, decreasing=TRUE), n = 10)
+bet_got_10
+ #net_got.ec <- eigen_centrality(net_got)$vector
+#Bar plot for the Closeness Centrality of top 10 actors:
+
+net_got.bc1 <- as.matrix(bet_got_10)
+df_net_got.bc2 <- as.data.frame(as.table(net_got.bc1))
+
+colnames(df_net_got.bc2) <- c("name", "not_used","betweenness")
+
+#df_net_got.bc2
+
+p <- ggplot(df_net_got.bc2, aes(x=name, y=betweenness)) +
+    geom_bar(stat="identity", color="blue", aes(fill=factor(name))) +
+      coord_flip() +
+    ggtitle("Most Important Character as per Betweenness Centrality") +
+    xlab("Character Names") + ylab("Betweenness") 
+print(p)
+```
+
+```{r}
+#Page Rank
+page_rank_got  <- page_rank(net_got, algo = c("prpack", "arpack", "power"), vids = V(net_got),
+  directed = FALSE, damping = 0.85, personalized = NULL, weights = NULL,
+  options = NULL)
+ #got_nodes $ page_rank  <-  page_rank_got [[ 1 ]]
+ #got_nodes $ page_rank
+ #got_nodes$Id
+ #page_rank_1 <- head(sort(got_nodes $ page_rank, decreasing=TRUE), n = 10)
+# top 10 characters based on page rank
+ page_rank_1 <- head(sort(page_rank_got$vector, decreasing=TRUE), n = 10)
+ 
+ #Bar plot for the Pagerank of top 10 actors:
+
+net_got.pr1 <- as.matrix(page_rank_1)
+df_net_got.pr1 <- as.data.frame(as.table(net_got.pr1))
+
+colnames(df_net_got.pr1) <- c("name", "not_used","pagerank")
+
+#df_net_got.pr1
+
+p <- ggplot(df_net_got.pr1, aes(x=name, y=pagerank)) +
+   
+    geom_bar(stat="identity", color="blue", aes(fill=factor(name))) +
+  coord_flip() +
+    ggtitle("Most Important Character as per Page Rank") +
+    xlab("Character Names") + ylab("Page Rank") 
+print(p)
+ 
+ 
+
+```
+
+```{r}
+#Identifying communities using Walktrap
+#Community structure detection based on the random walks
+
+
+g1 <- simplify(net_got)
+net_got1 <- walktrap.community(g1,modularity = TRUE)
+net_got1
+
+# Plot
+par(mfrow=c(1,2), mar=rep(1,4))
+layout <-layout.fruchterman.reingold(net_got)
+plot(net_got1, net_got, layout=layout, vertex.label=NA, vertex.size=5,  edge.arrow.size=.2)
+
+
+
+
+```
+
+```{r}
+#Closeness Centrality
+
+clo_gota <- closeness ( net_got , mode  =  "all" , weights  =  NA , normalized  =  T )
+clo_got1a <- as.matrix(clo_gota)
+df1a <- as.data.frame(as.table(clo_got1a))
+colnames(df1a) <- c("name", "not_used","closeness")
+ca <- df1a
+
+net_got.dca <- degree(net_got, mode = "all")
+net_got.dca1 <- as.matrix(net_got.dca)
+df1a_dc <- as.data.frame(as.table(net_got.dca1))
+colnames(df1a_dc) <- c("name", "not_used","degree")
+dca <- df1a_dc
+ 
+
+#c <- select(filter(df, name %in%  nodes_gender$id),c(name,closeness))
+View(ca)
+
+
+
+#Dropdown
+
+got_edges_d  <- read.csv  ( "stormofswords_ani.csv" , header  =  T , as.is=T) #352
+got_nodes_d  <- read.csv  ( "nodes_stormsofswords_ani.csv" , header  =  T , as.is=T)
+
+net_got_d  <- graph.data.frame ( d  =  got_edges_d , vertices  =  got_nodes_d , directed  =  F )
+
+# community detection based on walktrap 
+
+got_nodes_d $ community  <-  net_got1 $ membership
+
+# configurations
+got_nodes_d$shape <- "dot"
+got_nodes_d$shadow <- TRUE # Nodes will drop shadow
+got_nodes_d$title <- got_nodes_d$id # Text on click 
+got_nodes_d$label <- got_nodes_d$id # Node label
+got_nodes_d$size <- ca$closeness*150 # Node size [Change to dca$degree to get node size of degree centrality]
+got_nodes_d$borderWidth <- 2 # Node border width
+got_nodes_d$color.background <- c("pink", "blue","red","yellow","green","salmon","golden")[got_nodes_d$community]
+got_nodes_d$color.border <- "black"
+got_nodes_d$color.highlight.background <- "orange"
+got_nodes_d$color.highlight.border <- "darkred"
+#visNetwork(got_nodes_d, got_edges_d)
+
+# output
+library('visNetwork')
+net.vis1 <- visNetwork(got_nodes_d, got_edges_d, height = "700px", width = "100%") %>%
+  visOptions(highlightNearest = TRUE,
+           selectedBy = "community",
+           nodesIdSelection = TRUE)
+visSave(net.vis1, file="community_network.html")
+```
+
+```{r}
+
+# Filtering to Community 1 for simplicity
+
+library(dplyr)
+#filtering Nodes
+got_nodes $ community  <-  net_got1 $ membership
+ed_exp5 <- select(filter(got_nodes, community == 1),c(Id))
+
+View(ed_exp5)
+
+#Filtering Source
+View(got_edges)
+a <- select(filter(got_edges, Source %in% ed_exp5$Id),c(Source,Target,Weight))
+View(a)
+
+#Filtering Target
+b <- select(filter(a, Target %in% ed_exp5$Id),c(Source,Target,Weight))
+View(b)
+
+# New Graph Object
+net_got_filter  <- graph.data.frame ( d  =  b , vertices  =  ed_exp5 , directed  =  F )
+
+# Plot
+plot(net_got_filter, vertex.label.cex=0.7, edge.arrow.size=.5, vertex.size=.5,vertex.label.color = "red", layout=layout_with_kk)
+
+
+```
+
+```{r}
+
+#Animation
+
+library('igraph')
+library('threejs')
+library('animation')
+ani.options("convert")
+ani.options(convert="C:\\PROGRA~1\\ImageMagick-7.0.7-Q16\\magick.exe")
+
+#loading filtered edges (Column name changes, all the filtering done above)
+links1 <- read.csv("edges_1.csv", header=T, as.is=T)
+
+#loading filtered nodes (Column name changes, all the filtering done above)
+nodes <- read.csv("nodes.csv", header=T, as.is=T)
+
+#loading filtered nodes with gender (Column name changes, all the filtering done above)
+nodes_gender <- read.csv("nodes_gender.csv", header=T, as.is=T)
+
+#Closeness Centrality
+clo_gotq <- closeness ( net_got , mode  =  "all" , weights  =  NA , normalized  =  T )
+clo_got1q <- as.matrix(clo_gotq)
+dfq <- as.data.frame(as.table(clo_got1q))
+colnames(dfq) <- c("name", "not_used","closeness")
+cq <- filter(dfq, name %in%  nodes_gender$id)
+cq <- select(filter(dfq, name %in%  nodes_gender$id),c(name,closeness))
+View(cq)
+
+# Configurations
+nodes_gender$shape <- "dot"
+nodes_gender$shadow <- TRUE # Nodes will drop shadow
+nodes_gender$title <- nodes_gender$id # Text on click
+nodes_gender$label <- nodes_gender$id # Node label
+nodes_gender$size <- cq$closeness*100 # Node size
+nodes_gender$borderWidth <- 2 # Node border width
+nodes_gender$color.background <- c("pink", "blue")[nodes_gender$gender]
+nodes_gender$color.border <- "black"
+nodes_gender$color.highlight.background <- "orange"
+nodes_gender$color.highlight.border <- "darkred"
+#visNetwork(nodes_gender, links1)
+
+
+#Jon snow's image
+path_to_images <- "D:/Soc Net Analytics/R files/"
+nodes_gender[nodes_gender$id=="Jon",]$shape <- "circularImage"
+
+image = paste0(path_to_images, "jon-snow-game-of-thrones", ".jpg")
+nodes_gender[nodes_gender$id=="Jon",]$image <- image
+nodes_gender$image <- image
+nodes_gender[nodes_gender$id=="Jon",]$shape <- "circularImage"
+
+#Output
+library('visNetwork')
+net.vis1 <- visNetwork(nodes_gender, links1, height = "700px", width = "100%") %>%
+  visNodes(shapeProperties = list(useBorderWithImage = TRUE)) %>%
+  visOptions(highlightNearest = TRUE,
+           nodesIdSelection = TRUE)
+visSave(net.vis1, file="trial1.html")
+
+```
+
+
+```{r}
+
+
+
+```
+
+```{r}
+
+```
+
